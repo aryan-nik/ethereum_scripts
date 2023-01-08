@@ -9,7 +9,7 @@ services:
     volumes:
       - ethereum_redis_data:/data
     expose:  
-       - 6379  
+       - 6380  
   
   nodejs:
     restart: always
