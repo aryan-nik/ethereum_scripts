@@ -1,0 +1,26 @@
+version: '3.5'
+
+services:
+
+  redis_db:
+    restart: always
+    image: redis:7.0.0
+    container_name: ethereum_listener_db
+    volumes:
+      - ethereum_redis_data:/data
+    expose:  
+       - 6379  
+  
+  nodejs:
+    restart: always
+    image: node:18.12.1-bullseye-slim
+    volumes:
+       - ./js_client:/app
+    working_dir: /app
+    command: tail -f 
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+
+volumes:
+  ethereum_redis_data:
