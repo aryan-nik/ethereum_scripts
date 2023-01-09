@@ -109,7 +109,7 @@ async function get_missing_transactions() {
 
 async function get_exchange_addresses() {
     logger.info("getting addresses list from exchange")
-    return await axios.get(GET_ADDRESS_API + '?network=trc-20', { headers: { Authorization: "Bearer " + EXCHANGE_ACCESS_TOKEN } }).then(response => {
+    return await axios.get(GET_ADDRESS_API + '?network=erc-20', { headers: { Authorization: "Bearer " + EXCHANGE_ACCESS_TOKEN } }).then(response => {
         return response.data.data
     })
 }
