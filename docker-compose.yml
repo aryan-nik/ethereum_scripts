@@ -8,8 +8,6 @@ services:
     container_name: ethereum_listener_db
     volumes:
       - ethereum_redis_data:/data
-    expose:  
-       - 6380  
   
   nodejs:
     restart: always
