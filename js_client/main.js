@@ -38,6 +38,7 @@ const logger = winston.createLogger({
 });
 
 // initialize ethers
+const provider = new Ethers.providers.JsonRpcProvider(FULL_NODE_IP)
 
 let exchangeAddresses = []
 let contract_addresses = {}
@@ -54,8 +55,8 @@ async function notifyExchange(message) {
 
 async function get_missing_transactions() {
 
-    // get now block
-    logger.info(`current block: ${currentBlock}`)
+    // get last block number from provider
+    let currentBlock = await provider.getBlockNumber()
 
     // get last checked block from redis
     let lastCheckedBlock = parseInt(await redis_client.get('last_checked_block'));
@@ -63,23 +64,27 @@ async function get_missing_transactions() {
     //     add a valid value to lastCheckedBlock
 
     logger.info(`last checked block: ${lastCheckedBlock}`)
-
+    logger.info(`current block: ${currentBlock}`)
     logger.info(`check for addresses: ${JSON.stringify(exchangeAddresses)}`)
 
-    // for all block form lastCheckedBlock to lastCheckedBlock
-    // while (lastCheckedBlock < lastCheckedBlock) {
-    // get blocks for this batch
-    //logger.info(`get ${batchSize} blocks from full node from ${lastCheckedBlock} to ${Math.min(lastCheckedBlock + batchSize, confirmLimitBlock)} ...`)
+
+    // for all block form lastCheckedBlock to currentBlock
+    let range = currentBlock - lastCheckedBlock
+    for (let i = 0; i < range; i++) {
+        const block = await provider.getBlockWithTransactions(lastCheckedBlock + i);
+        logger.info(`checking transactions for block ${block.number} ...`)
+
+        if (!block.transactions)
+            continue
+
+        transactions = block.transactions
+        for (let j = 0; j < transactions.length; j++) {
+
+        
+    }
+
     logger.info(`got blocks ok`)
 
-    // if (!block.transactions)
-    //     continue
-
-    // check transactions of block
-    // logger.info(`checking transactions for block ${block number} ...`)
-    // for all transaction in block
-    // if (transaction!= "SUCCESS")
-    // continue
 
     // check transaction type
     // if type is ok check receiver
@@ -156,4 +161,65 @@ async function retry(maxRetries, fn, input = undefined) {
         await new Promise((resolve) => { setTimeout(resolve, RETRY_AFTER); })
         return retry(maxRetries - 1, fn, input);
     });
+}
+
+
+for (const transction of block.transactions){
+    data = await pr.getTransaction(transction)
+    if (data.to.toLowerCase() == usdt){
+    console.log(data.hash)}}
+
+
+async function getLastBlockTransactions() {
+    const blockNumber = await pr.getBlockNumber();
+    const block = await pr.getBlock(blockNumber);
+    for (const tx of block.transactions) {
+        await checkTransaction(tx);
+    }
+}
+
+const ethers = require('ethers');
+
+async function getUsdtTransfers(blockNumber) {
+    const block = await pr.getBlock(blockNumber);
+    const usdtContract = new ethers.Contract(
+        "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+        abi,
+        pr
+    );
+
+    let usdtTransfers = [];
+    for (let i = 0; i < block.transactions.length; i++) {
+        const tx = block.transactions[i];
+        const parsedTx = usdtContract.interface.parseTransaction({
+            data: tx
+        });
+        if (parsedTx !== null && parsedTx.name === "transfer") {
+            usdtTransfers.push({
+                from: tx.from,
+                to: parsedTx.args[0],
+                value: parsedTx.args[1].toString()
+            });
+        }
+    }
+    return usdtTransfers;
+}
+
+const logs = await pr.getLogs({
+    fromBlock: blockNumber,
+    toBlock: blockNumber+1,
+    address: usdt
+});
+
+// Loop through the logs
+for (let i = 0; i < logs.length; i++) {
+    // Decode the log
+    const decoded = contract.interface.parseLog(logs[i]);
+
+    // Check if the log is a transfer event
+    if (decoded.name === "Transfer") {
+        // The `decoded.values` object contains the indexed and non-indexed
+        // values of the event, including the `from`, `to`, and `value` of the transfer.
+        console.log(decoded.values);
+    }
 }
