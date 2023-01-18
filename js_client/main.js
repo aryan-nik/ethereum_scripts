@@ -3,6 +3,7 @@ const axios = require('axios');
 const redis = require('redis');
 const winston = require('winston');
 const { RETRY_AFTER } = require('./conf')
+const usdt_abi = require('./ABIs/USDT.json');
 
 require('dotenv').config();
 
@@ -41,7 +42,7 @@ const logger = winston.createLogger({
 const provider = new Ethers.providers.JsonRpcProvider(FULL_NODE_IP)
 
 let exchangeAddresses = []
-let contract_addresses = {}
+let contract_addresses = { "0xdac17f958d2ee523a2206206994597c13d831ec7": { "name": "USDT", 'decimal': 6 } }
 
 async function notifyExchange(message) {
     logger.info('notify exchange...')
@@ -51,6 +52,13 @@ async function notifyExchange(message) {
         logger.info(`error in notify exchange: ${error} add to retry...`)
         throw error
     })
+}
+
+async function isERC20(tx) {
+    if (contract_addresses[tx.toLowerCase()]) {
+        return true
+    }
+    return false
 }
 
 async function get_missing_transactions() {
@@ -73,45 +81,49 @@ async function get_missing_transactions() {
     for (let i = 0; i < range; i++) {
         const block = await provider.getBlockWithTransactions(lastCheckedBlock + i);
         logger.info(`checking transactions for block ${block.number} ...`)
+        logger.info(`got block ok`)
 
         if (!block.transactions)
             continue
 
         transactions = block.transactions
         for (let j = 0; j < transactions.length; j++) {
+            // check transaction type
+            if (isERC20(transactions[j].to)) {
 
-        
+            } else {
+                // if type is ok check receiver
+                if (exchangeAddresses.indexOf(transactions[j].to) >= 0) {
+                    let message = {
+                        "address": transactions[j].to,
+                        "confirmation": currentBlock - block.number,
+                        "amount": amount,
+                        "txid": transaction.hash,
+                        "time_received": time_received
+                    }
+                    retry(3, notifyExchange, message).catch(error => {
+                        logger.info(`connection to exchange failed after 3 retry tx_hash: ${transaction.hash}`)
+                    })
+                    logger.info(`TransferContract found ${transaction.hash} for address ${transactions[j].to} in block ${block.number}`)
+                }
+
+            }
+
+        }
+
+
+        await new Promise((resolve) => { setTimeout(resolve, 2); })
+
+
+        // update lastCheckedBlock
+        // lastCheckedBlock = Math.min(lastCheckedBlock + batchSize, confirmLimitBlock)
+        // update lastCheckBlock in redis
+        // lastCheckedBlock = confirmLimitBlock + 1
+        await redis_client.set('last_checked_block', lastCheckedBlock + i);
+        logger.info(`updating last_checked_block in redis ${lastCheckedBlock + i}`)
     }
 
-    logger.info(`got blocks ok`)
-
-
-    // check transaction type
-    // if type is ok check receiver
-    // if ours notify exchange
-    // logger.info(`TransferContract found ${transaction.txID} for address ${receiver address} in block ${block number}`)
-    // let message = {
-    //     "address": address,
-    //     "confirmation": currentBlock - block.number,
-    //     "amount": amount,
-    //     "txid": transaction.txID,
-    //     "time_received": time_received
-    // }
-    // retry(3, notifyExchange, message).catch(error => {
-    //     logger.info(`connection to exchange failed after 3 retry tx_hash: ${transaction.txID}`)
-    // })
-    await new Promise((resolve) => { setTimeout(resolve, 2); })
-
-
-    // update lastCheckedBlock
-    // lastCheckedBlock = Math.min(lastCheckedBlock + batchSize, confirmLimitBlock)
-    // update lastCheckBlock in redis
-    // lastCheckedBlock = confirmLimitBlock + 1
-    await redis_client.set('last_checked_block', lastCheckedBlock);
-    logger.info(`updating last_checked_block in redis ${lastCheckedBlock}`)
 }
-
-
 async function get_exchange_addresses() {
     logger.info("getting addresses list from exchange")
     return await axios.get(GET_ADDRESS_API + '?network=erc-20', { headers: { Authorization: "Bearer " + EXCHANGE_ACCESS_TOKEN } }).then(response => {
@@ -164,10 +176,12 @@ async function retry(maxRetries, fn, input = undefined) {
 }
 
 
-for (const transction of block.transactions){
+for (const transction of block.transactions) {
     data = await pr.getTransaction(transction)
-    if (data.to.toLowerCase() == usdt){
-    console.log(data.hash)}}
+    if (data.to.toLowerCase() == usdt) {
+        console.log(data.hash)
+    }
+}
 
 
 async function getLastBlockTransactions() {
@@ -207,7 +221,7 @@ async function getUsdtTransfers(blockNumber) {
 
 const logs = await pr.getLogs({
     fromBlock: blockNumber,
-    toBlock: blockNumber+1,
+    toBlock: blockNumber + 1,
     address: usdt
 });
 
